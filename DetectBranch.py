@@ -1,21 +1,30 @@
 import subprocess
 import sys
+from pathlib import Path
 
-# Detects the current Git branch name
-def detect_branch() -> str:
-	try:
-		branch = subprocess.check_output(
-			["git", "rev-parse", "--abbrev-ref", "HEAD"], # Sent this to the terminal to get the current branch name
-			stderr=subprocess.DEVNULL,
-			text=True,
-		).strip()
-	except (subprocess.CalledProcessError, FileNotFoundError): # if git is not installed or the command fails, return "No branch"
-		return "No branch"
+# Detects the current Git branch name for a given project folder.
+def detect_branch(project_path: str | Path | None = None) -> str:
+    command = ["git", "rev-parse", "--abbrev-ref", "HEAD"]
+    if project_path is not None:
+        project_path = Path(project_path).expanduser()
+        if not project_path.exists() or not project_path.is_dir():
+            return "No branch"
+        command = ["git", "-C", str(project_path), "rev-parse", "--abbrev-ref", "HEAD"]
 
-	return branch or "No branch" # if the branch name is empty, return "No branch"
+    try:
+        branch = subprocess.check_output(
+            command,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return "No branch"
+
+    return branch or "No branch"
 
 
 if __name__ == "__main__":
-	branch = detect_branch()
-	print(branch)
-	sys.exit(0 if branch != "No branch" else 1)
+    project_path = sys.argv[1] if len(sys.argv) > 1 else None
+    branch = detect_branch(project_path)
+    print(branch)
+    sys.exit(0 if branch != "No branch" else 1)
