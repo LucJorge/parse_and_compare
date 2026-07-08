@@ -4,12 +4,14 @@ from pathlib import Path
 
 # Detects the current Git branch name for a given project folder.
 def detect_branch(project_path: str | Path | None = None) -> str:
-    command = ["git", "rev-parse", "--abbrev-ref", "HEAD"]
-    if project_path is not None:
-        project_path = Path(project_path).expanduser()
-        if not project_path.exists() or not project_path.is_dir():
-            return "No branch"
-        command = ["git", "-C", str(project_path), "rev-parse", "--abbrev-ref", "HEAD"]
+    if project_path is None:
+        return "No branch"
+
+    project_path = Path(project_path).expanduser()
+    if not project_path.exists() or not project_path.is_dir():
+        return "No branch"
+
+    command = ["git", "-C", str(project_path), "rev-parse", "--abbrev-ref", "HEAD"]
 
     try:
         branch = subprocess.check_output(

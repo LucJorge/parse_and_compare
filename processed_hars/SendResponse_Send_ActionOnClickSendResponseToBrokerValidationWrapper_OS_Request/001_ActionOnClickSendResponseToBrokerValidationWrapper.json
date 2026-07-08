@@ -1,0 +1,11 @@
+{
+  "versionInfo": {
+    "hasModuleVersionChanged": false,
+    "hasApiVersionChanged": false
+  },
+  "data": {
+    "ErrorMessage": "",
+    "EndorsementValidationSuccess": true,
+    "LockExists": true
+  }
+}

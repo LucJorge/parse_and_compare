@@ -42,7 +42,7 @@ def get_project_root():
 # Get the name of the HAR file from the user.
 def get_har_file_name():
     while True:
-        har_name = input("Name of the .har file in the script folder: ").strip().strip('"')
+        har_name = input("Name of the .har file in the hars folder: ").strip().strip('"')
         if not har_name:
             print("The file name cannot be empty.")
             continue
@@ -50,10 +50,20 @@ def get_har_file_name():
 
 
 # Resolve the HAR file path based on the script directory and the provided HAR file name.
-def resolve_har_path(script_dir: Path, har_name: str) -> Path:
+def resolve_har_path(script_dir: Path, har_name: str):
+    input_dir = (script_dir / "hars").resolve()
+    input_dir.mkdir(parents=True, exist_ok=True)
+
     candidate = Path(har_name).expanduser()
     if not candidate.is_absolute():
-        candidate = (script_dir / candidate).resolve()
+        candidate = (input_dir / candidate).resolve()
+    else:
+        candidate = candidate.resolve()
+
+    if not str(candidate).startswith(str(input_dir)):
+        print(f"The HAR file must be inside: {input_dir}")
+        return None
+
     return candidate
 
 
@@ -61,21 +71,19 @@ def resolve_har_path(script_dir: Path, har_name: str) -> Path:
 def run_pipeline():
     # Get the project root and the HAR file path
     project_root = get_project_root()
-    # Print the current Git branch of the project
-    print(f"Current branch: {detect_branch(project_root)}")
+    # Print the current Git branch of the selected PPL Core Platform project
+    print(f"Branch of PPL Core Platform project: {detect_branch(project_root)}")
 
     # Get the script directory and the HAR file path
     script_dir = Path(__file__).resolve().parent
     har_name = get_har_file_name()
     har_path = resolve_har_path(script_dir, har_name)
 
-    if not har_path.exists():
-        print(f"File not found: {har_path}")
+    if har_path is None:
         sys.exit(2)
 
     print(f"Project found at: {project_root}")
-    print(f"Processing HAR file: {har_path}")
-
+    
     import GetEndpoint
 
     # Call the get_endpoints function from GetEndpoint.py to process the HAR file

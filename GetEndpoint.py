@@ -47,9 +47,6 @@ def save_entry_files(output_dir, index, method, url, headers, body, content):
     http_file_path.write_text(http_content, encoding="utf-8")
     json_file_path.write_text(response_content, encoding="utf-8")
 
-    print(f"Saved: {http_file_path}")
-    print(f"Saved: {json_file_path}")
-
 # Resolve the HAR file path based on the script directory and the provided HAR file name.
 def resolve_har_path(path):
     har_file_path = Path(path).expanduser()
@@ -57,10 +54,16 @@ def resolve_har_path(path):
         har_file_path = (Path(__file__).resolve().parent / har_file_path).resolve()
     return har_file_path
 
+def resolve_processed_har_path(har_file_path):
+    processed_root = har_file_path.parent.parent / "processed_hars"
+    processed_root.mkdir(parents=True, exist_ok=True)
+    processed_har_file_path = processed_root / har_file_path.name
+    return processed_har_file_path
+
 # Scan the HAR file for all HTTP requests and responses, and save them in the output directory.
 def get_endpoints(path):
     har_file_path = resolve_har_path(path)
-
+    processed_har_file_path = resolve_processed_har_path(har_file_path)
     if not har_file_path.is_file():
         print(f"File not found: {har_file_path}")
         return False
@@ -69,7 +72,7 @@ def get_endpoints(path):
         file_content = json.load(file)
 
     entries = file_content.get("log", {}).get("entries", [])
-    output_dir = har_file_path.parent / har_file_path.stem
+    output_dir = processed_har_file_path.parent / har_file_path.stem
     output_dir.mkdir(parents=True, exist_ok=True)
 
     for index, entry in enumerate(entries, start=1):
@@ -82,7 +85,7 @@ def get_endpoints(path):
         content = response.get("content", {}).get("text")
         save_entry_files(output_dir, index, method, url, headers, text, content)
 
-    print(f"Extraction completed: {output_dir}")
+    print(f"--- Extraction completed ---")
     return True
 
 
