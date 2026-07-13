@@ -1,6 +1,8 @@
 import json
+import shutil
 import sys
 from pathlib import Path
+
 
 def safe_name(value):
     # Remove any characters that are not alphanumeric, hyphens, underscores, or periods and replace them with underscores.
@@ -54,15 +56,16 @@ def resolve_har_path(path):
         har_file_path = (Path(__file__).resolve().parent / har_file_path).resolve()
     return har_file_path
 
+
 def resolve_processed_har_path(har_file_path):
     processed_root = har_file_path.parent.parent / "processed_hars"
     processed_root.mkdir(parents=True, exist_ok=True)
     processed_har_file_path = processed_root / har_file_path.name
     return processed_har_file_path
 
-# Scan the HAR file for all HTTP requests and responses, and save them in the output directory.
-def get_endpoints(path):
-    har_file_path = resolve_har_path(path)
+
+def process_har_file(har_file_path):
+    har_file_path = resolve_har_path(har_file_path)
     processed_har_file_path = resolve_processed_har_path(har_file_path)
     if not har_file_path.is_file():
         print(f"File not found: {har_file_path}")
@@ -73,6 +76,8 @@ def get_endpoints(path):
 
     entries = file_content.get("log", {}).get("entries", [])
     output_dir = processed_har_file_path.parent / har_file_path.stem
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     for index, entry in enumerate(entries, start=1):
@@ -85,12 +90,40 @@ def get_endpoints(path):
         content = response.get("content", {}).get("text")
         save_entry_files(output_dir, index, method, url, headers, text, content)
 
-    print(f"--- Extraction completed ---")
+    print(f"Processed {har_file_path.name} -> {output_dir}")
     return True
+
+
+# Scan the HAR files in a folder (or a single HAR file) and save them in the output directory.
+def get_endpoints(path):
+    input_path = resolve_har_path(path)
+
+    if input_path.is_dir():
+        har_files = sorted(
+            {
+                candidate.resolve()
+                for candidate in input_path.iterdir()
+                if candidate.is_file() and candidate.suffix.lower() == ".har"
+            },
+            key=lambda candidate: candidate.name.lower(),
+        )
+        if not har_files:
+            print(f"No .har files found in {input_path}")
+            return False
+
+        all_ok = True
+        for har_file in har_files:
+            all_ok = process_har_file(har_file) and all_ok
+
+        print(f"--- Extraction completed for {len(har_files)} HAR file(s) ---")
+        return all_ok
+
+    return process_har_file(input_path)
 
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         get_endpoints(sys.argv[1])
     else:
-        print("Usage: python GetEndpoint.py <path-to-har-file>")
+        default_path = Path(__file__).resolve().parent / "hars"
+        get_endpoints(default_path)

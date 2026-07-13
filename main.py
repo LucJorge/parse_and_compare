@@ -1,56 +1,14 @@
-import json
 import sys
 from pathlib import Path
 from DetectBranch import detect_branch
+from config import get_project_root
+from har_extractor import load_har, choose_entry, extract_request
+from request_runner import send_request, wait_for_backend
+from response_comparator import compare_response
+from reporter import build_report, save_report, format_report_text
+from GetEndpoint import get_endpoints
 
-# Load the configuration from a JSON file to persist the project root directory.
-def load_config(config_path: Path):
-    if config_path.exists():
-        with config_path.open("r", encoding="utf-8") as handle:
-            return json.load(handle)
-    return {}
-
-# Save the configuration to a JSON file to persist the project root directory.
-def save_config(config_path: Path, config):
-    with config_path.open("w", encoding="utf-8") as handle:
-        json.dump(config, handle, indent=2)
-
-# Get the project root directory from the user or from the config file.
-def get_project_root():
-    script_dir = Path(__file__).resolve().parent
-    config_path = script_dir / "config.json"
-    config = load_config(config_path)
-
-    if config.get("project_root"):
-        return Path(config["project_root"]).expanduser().resolve()
-
-    while True:
-        answer = input("PLL Core Platform folder: ").strip().strip('"')
-        if not answer:
-            print("The folder cannot be empty.")
-            continue
-        project_root = Path(answer).expanduser()
-        if not project_root.is_absolute():
-            project_root = (Path.cwd() / project_root).resolve()
-        if project_root.exists():
-            config["project_root"] = str(project_root)
-            save_config(config_path, config)
-            return project_root
-        print(f"Folder not found: {project_root}")
-
-
-# Get the name of the HAR file from the user.
-def get_har_file_name():
-    while True:
-        har_name = input("Name of the .har file in the hars folder: ").strip().strip('"')
-        if not har_name:
-            print("The file name cannot be empty.")
-            continue
-        return har_name
-
-
-# Resolve the HAR file path based on the script directory and the provided HAR file name.
-def resolve_har_path(script_dir: Path, har_name: str):
+def resolve_har_path(script_dir: Path, har_name: str) -> Path | None:
     input_dir = (script_dir / "hars").resolve()
     input_dir.mkdir(parents=True, exist_ok=True)
 
@@ -64,35 +22,66 @@ def resolve_har_path(script_dir: Path, har_name: str):
         print(f"The HAR file must be inside: {input_dir}")
         return None
 
+    if not candidate.is_file():
+        print(f"HAR file not found: {candidate}")
+        return None
+
     return candidate
 
-
-# Start of the pipeline
+# Main function to run the pipeline
 def run_pipeline():
-    # Get the project root and the HAR file path
-    project_root = get_project_root()
-    # Print the current Git branch of the selected PPL Core Platform project
-    print(f"Branch of PPL Core Platform project: {detect_branch(project_root)}")
-
-    # Get the script directory and the HAR file path
     script_dir = Path(__file__).resolve().parent
-    har_name = get_har_file_name()
-    har_path = resolve_har_path(script_dir, har_name)
+    project_root = get_project_root(script_dir)
+    print(f"Branch: {detect_branch(project_root)}")
 
+    print("Processing HAR files in hars/...")
+    get_endpoints(script_dir / "hars")
+
+    har_name = input("Name of the .har file in the hars folder: ").strip().strip('"')
+    har_path = resolve_har_path(script_dir, har_name)
     if har_path is None:
         sys.exit(2)
 
-    print(f"Project found at: {project_root}")
-    
-    import GetEndpoint
+    har = load_har(har_path)
+    entry, entry_index = choose_entry(har)
+    extracted = extract_request(entry)
+    request_spec = extracted["request"]
+    expected_response = extracted["expected_response"]
 
-    # Call the get_endpoints function from GetEndpoint.py to process the HAR file
-    success = GetEndpoint.get_endpoints(str(har_path))
-    if success:
-        print("DONE: All endpoints extracted successfully.")
-    else:
+    aspire_base_url = input("Aspire local base URL (e.g. http://localhost:5046): ").strip()
+    request_spec["aspire_base_url"] = aspire_base_url
+
+    print(f"Waiting for backend at {aspire_base_url}...")
+    if not wait_for_backend(aspire_base_url):
+        print("Backend did not become available in time.")
         sys.exit(2)
+
+    # Send the request and compare the response
+    actual_response = send_request(request_spec, aspire_base_url)
+    comparison = compare_response(expected_response, actual_response)
+
+    report = build_report(
+        branch=detect_branch(project_root),
+        har_file=har_path,
+        entry_index=entry_index,
+        request_spec=request_spec,
+        expected_response=expected_response,
+        actual_response=actual_response,
+        comparison=comparison,
+    )
+
+    report_dir = script_dir / "reports"
+    report_path = save_report(report, report_dir)
+    print(format_report_text(report))
+    print(f"Report saved to: {report_path}")
+
+    if comparison["ready_for_testing"]:
+        print("Ready for Testing")
+        return 0
+
+    print("Code Review Needed")
+    return 1
 
 
 if __name__ == "__main__":
-    run_pipeline()
+    sys.exit(run_pipeline())
