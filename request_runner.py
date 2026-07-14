@@ -1,9 +1,7 @@
 import ssl
 import time
-from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 
@@ -29,24 +27,6 @@ def _decode_response_body(raw_body: bytes, headers: Any) -> str:
 
     return raw_body.decode(charset, errors="replace")
 
-# Utility functions for sending HTTP requests and waiting for backend availability.
-def build_local_url(base_url: str, path: str, query: str) -> str:
-    base_url = base_url.rstrip("/")
-    if not base_url:
-        raise ValueError("A non-empty base URL is required.")
-
-    if not urlsplit(base_url).scheme:
-        raise ValueError("Base URL must include a scheme, for example http://localhost:5000.")
-
-    if not path.startswith("/"):
-        path = f"/{path}"
-
-    target_url = f"{base_url}{path}"
-    if query:
-        target_url = f"{target_url}?{query}"
-
-    return target_url
-
 # Function to wait for the backend to be available
 def wait_for_backend(base_url: str, timeout_seconds: float = 10.0, interval_seconds: float = 0.5) -> bool:
     deadline = time.monotonic() + timeout_seconds
@@ -65,8 +45,7 @@ def wait_for_backend(base_url: str, timeout_seconds: float = 10.0, interval_seco
             time.sleep(interval_seconds)
 
 # Function to send an HTTP request based on the request specification and return the response
-def send_request(request_spec: dict[str, Any], base_url: str, timeout_seconds: float = 15.0) -> dict[str, Any]:
-    target_url = build_local_url(base_url, request_spec["path"], request_spec["query"])
+def send_request(request_spec: dict[str, Any], target_url: str, timeout_seconds: float = 15.0) -> dict[str, Any]:
     headers = {
         name: value
         for name, value in request_spec.get("headers", {}).items()

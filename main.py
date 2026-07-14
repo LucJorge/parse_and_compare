@@ -1,12 +1,12 @@
 import sys
 from pathlib import Path
 from DetectBranch import detect_branch
-from config import get_project_root
-from har_extractor import load_har, choose_entry, extract_request
+from config import get_project_root, get_local_base_url
+from har_extractor import load_har, choose_entry, extract_request, transform_to_local_url
 from request_runner import send_request, wait_for_backend
 from response_comparator import compare_response
 from reporter import build_report, save_report, format_report_text
-from GetEndpoint import get_endpoints
+from GetEndpoint import get_endpoints, find_processed_entries, parse_http_file, resolve_processed_entries_dir
 
 def resolve_har_path(script_dir: Path, har_name: str) -> Path | None:
     input_dir = (script_dir / "hars").resolve()
@@ -28,40 +28,27 @@ def resolve_har_path(script_dir: Path, har_name: str) -> Path | None:
 
     return candidate
 
-# Main function to run the pipeline
-def run_pipeline():
-    script_dir = Path(__file__).resolve().parent
-    project_root = get_project_root(script_dir)
-    print(f"Branch: {detect_branch(project_root)}")
+# Runs a single processed .http entry end-to-end and returns its comparison result.
+def run_entry(script_dir, branch, har_path, har, local_base_url, entry_index, http_file):
+    parsed_request = parse_http_file(http_file)
+    entry, _ = choose_entry(har, preferred_index=entry_index)
+    expected_response = extract_request(entry)["expected_response"]
 
-    print("Processing HAR files in hars/...")
-    get_endpoints(script_dir / "hars")
+    target_url = transform_to_local_url(parsed_request["url"], local_base_url)
+    request_spec = {
+        "method": parsed_request["method"],
+        "headers": parsed_request["headers"],
+        "body": parsed_request["body"],
+        "original_url": parsed_request["url"],
+        "target_url": target_url,
+    }
 
-    har_name = input("Name of the .har file in the hars folder: ").strip().strip('"')
-    har_path = resolve_har_path(script_dir, har_name)
-    if har_path is None:
-        sys.exit(2)
-
-    har = load_har(har_path)
-    entry, entry_index = choose_entry(har)
-    extracted = extract_request(entry)
-    request_spec = extracted["request"]
-    expected_response = extracted["expected_response"]
-
-    aspire_base_url = input("Aspire local base URL (e.g. http://localhost:5046): ").strip()
-    request_spec["aspire_base_url"] = aspire_base_url
-
-    print(f"Waiting for backend at {aspire_base_url}...")
-    if not wait_for_backend(aspire_base_url):
-        print("Backend did not become available in time.")
-        sys.exit(2)
-
-    # Send the request and compare the response
-    actual_response = send_request(request_spec, aspire_base_url)
+    print(f"[{entry_index}] {request_spec['method']} {target_url}")
+    actual_response = send_request(request_spec, target_url)
     comparison = compare_response(expected_response, actual_response)
 
     report = build_report(
-        branch=detect_branch(project_root),
+        branch=branch,
         har_file=har_path,
         entry_index=entry_index,
         request_spec=request_spec,
@@ -70,17 +57,52 @@ def run_pipeline():
         comparison=comparison,
     )
 
-    report_dir = script_dir / "reports"
-    report_path = save_report(report, report_dir)
+    report_path = save_report(report, script_dir / "reports")
     print(format_report_text(report))
     print(f"Report saved to: {report_path}")
+    print(f"[{entry_index}] {'Ready for Testing' if comparison['ready_for_testing'] else 'Code Review Needed'}")
 
-    if comparison["ready_for_testing"]:
-        print("Ready for Testing")
-        return 0
+    return comparison["ready_for_testing"]
 
-    print("Code Review Needed")
-    return 1
+
+# Main function to run the pipeline
+def run_pipeline():
+    script_dir = Path(__file__).resolve().parent
+    project_root = get_project_root(script_dir)
+    branch = detect_branch(project_root)
+    print(f"Branch: {branch}")
+
+    local_base_url = get_local_base_url(script_dir)
+
+    har_name = input("Name of the .har file in the hars folder: ").strip().strip('"')
+    har_path = resolve_har_path(script_dir, har_name)
+    if har_path is None:
+        sys.exit(2)
+
+    print(f"Processing {har_path.name}...")
+    if not get_endpoints(har_path):
+        print(f"Failed to process HAR file: {har_path}")
+        sys.exit(2)
+
+    processed_dir = resolve_processed_entries_dir(har_path)
+    entries = find_processed_entries(processed_dir)
+    if not entries:
+        print(f"No processed entries found in: {processed_dir}")
+        sys.exit(2)
+
+    print(f"Waiting for backend at {local_base_url}...")
+    if not wait_for_backend(local_base_url):
+        print("Backend did not become available in time.")
+        sys.exit(2)
+
+    har = load_har(har_path)
+
+    all_ready = True
+    for entry_index, http_file in entries:
+        ready = run_entry(script_dir, branch, har_path, har, local_base_url, entry_index, http_file)
+        all_ready = all_ready and ready
+
+    return 0 if all_ready else 1
 
 
 if __name__ == "__main__":

@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+DEFAULT_LOCAL_BASE_URL = "https://localhost:7078/api/Core"
+
 # Utility functions for loading and saving configuration, and determining the project root directory.
 def load_config(config_path: Path) -> dict:
     if config_path.exists():
@@ -38,3 +40,19 @@ def get_project_root(script_dir: Path) -> Path:
             return resolved
 
         print(f"Folder not found: {resolved}")
+
+
+# Returns the local backend base URL (e.g. https://localhost:7078/api/Core), persisting it on first use.
+def get_local_base_url(script_dir: Path) -> str:
+    config_path = script_dir / "config.json"
+    config = load_config(config_path)
+    local_base_url = config.get("local_base_url")
+
+    if local_base_url:
+        return local_base_url.rstrip("/")
+
+    answer = input(f"Local backend base URL [default: {DEFAULT_LOCAL_BASE_URL}]: ").strip()
+    local_base_url = (answer or DEFAULT_LOCAL_BASE_URL).rstrip("/")
+    config["local_base_url"] = local_base_url
+    save_config(config_path, config)
+    return local_base_url

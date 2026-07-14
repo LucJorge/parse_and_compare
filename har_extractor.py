@@ -21,6 +21,17 @@ def parse_url(url: str) -> tuple[str, str, str]:
     return path, query, host
 
 
+# Replaces everything before "screenservices" in the original URL with the local backend base URL.
+def transform_to_local_url(original_url: str, local_base_url: str) -> str:
+    marker = "screenservices"
+    marker_index = original_url.find(marker)
+    if marker_index == -1:
+        raise ValueError(f"URL does not contain '{marker}': {original_url}")
+
+    suffix = original_url[marker_index:]
+    return f"{local_base_url.rstrip('/')}/{suffix}"
+
+
 def extract_request(entry: dict[str, Any]) -> dict[str, Any]:
     request = entry.get("request", {})
     url = request.get("url", "")

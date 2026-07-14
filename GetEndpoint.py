@@ -64,6 +64,56 @@ def resolve_processed_har_path(har_file_path):
     return processed_har_file_path
 
 
+# Returns the processed_hars/<har_stem> folder for a given .har file path.
+def resolve_processed_entries_dir(har_file_path):
+    return resolve_processed_har_path(har_file_path).parent / har_file_path.stem
+
+
+# Lists the processed .http entry files for a har, as (entry_index, http_path) sorted by index.
+def find_processed_entries(processed_dir):
+    if not processed_dir.is_dir():
+        return []
+
+    entries = []
+    for http_file in processed_dir.glob("*.http"):
+        prefix = http_file.stem.split("_", 1)[0]
+        if prefix.isdigit():
+            entries.append((int(prefix), http_file))
+
+    entries.sort(key=lambda item: item[0])
+    return entries
+
+
+# Parses a saved .http request file back into method, url, headers and body.
+def parse_http_file(http_file_path):
+    content = http_file_path.read_text(encoding="utf-8")
+    lines = content.split("\n")
+
+    request_line = lines[0]
+    method, rest = request_line.split(" ", 1)
+    url = rest.rsplit(" HTTP/", 1)[0].strip()
+
+    headers = {}
+    line_index = 1
+    while line_index < len(lines) and lines[line_index].strip() != "":
+        line = lines[line_index]
+        if ":" in line:
+            name, value = line.split(":", 1)
+            headers[name.strip()] = value.strip()
+        line_index += 1
+
+    body = ""
+    if line_index + 1 < len(lines):
+        body = "\n".join(lines[line_index + 1:])
+
+    return {
+        "method": method.strip(),
+        "url": url,
+        "headers": headers,
+        "body": body,
+    }
+
+
 def process_har_file(har_file_path):
     har_file_path = resolve_har_path(har_file_path)
     processed_har_file_path = resolve_processed_har_path(har_file_path)
