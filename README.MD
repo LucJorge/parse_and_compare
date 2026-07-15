@@ -1,64 +1,32 @@
-# HAR Runner
+# HAR Runner Testing Suite
 
-Este projeto implementa um runner manual de HAR que:
+This tool automates backend integration testing by replaying HTTP Archive (`.har`) requests against a local .NET Aspire environment. It extracts the original request from a HAR file, executes it locally, and compares the actual backend response against the expected output, generating a report.
 
-- carrega um arquivo HAR;
-- seleciona um único request;
-- executa o request contra um backend Aspire local;
-- compara a resposta real com a resposta armazenada no HAR;
-- gera um relatório de validação.
+## Architecture
 
-## Arquitetura
+- **`main.py`**: Orchestrates the core execution flow. Reads configurations and Git branches, loads the HAR file, prompts for manual entry selection, triggers the local request, compares results, and saves the final report.
+- **`har_extractor.py`**: Parses the `.har` file to extract the HTTP method, path, query parameters, headers, and body. It also provides the interface for manual entry selection.
+- **`request_runner.py`**: Constructs the local .NET Aspire URL. It preserves the original path, query string, request body, and HTTP method, sending the exact request to the local backend. Includes optional wait-for-backend support.
+- **`response_comparator.py`**: Compares HTTP status codes, relevant headers, and response bodies. It intelligently ignores volatile headers (like `Date`, `Server`, `Content-Length`, and correlation IDs) and performs structural JSON comparisons where possible, generating a readable diff for any discrepancies.
+- **`reporter.py`**: Constructs and persists the final comparison report. Documents the Git branch, HAR file used, targeted endpoint, expected vs. actual status, and the generated diff.
+- **`config.py`**: Manages the persistence of local configurations, including the PPL Core Platform project path.
 
-- `main.py`
-  - orquestra o fluxo principal
-  - lê configuração e branch Git
-  - carrega o HAR
-  - permite a seleção manual de uma entrada
-  - dispara o request local
-  - compara resultados e salva relatório
+## Execution Flow
+Afther executing 
+1. Place your target `.har` file into the `Compare/hars/` directory.
+2. Run `python main.py` from within the `Compare/` directory.
+3. Input the name of the `.har` file when prompted.
+4. Select the specific request entry you want to test.
+5. The tool will extract the endpoint and save the expected response in the `processed_hars/` folder for better visualization.
+6. Provide the local .NET Aspire URL (e.g., `http://localhost:5046`), or allow the script to use the saved backend endpoint from `config.json`.
+7. The runner waits for the backend to be ready, executes the request, compares the responses, and saves the output report in `Compare/reports/`.
 
-- `har_extractor.py`
-  - lê e parseia o arquivo HAR
-  - extrai método, path, query, headers e body
-  - fornece seleção de entrada manual
+## Expected Results
 
-- `request_runner.py`
-  - monta a URL local do Aspire
-  - preserva path, query string, body e método HTTP
-  - envia o request ao backend local
-  - suporta espera opcional pelo backend
+- **`Ready for Testing`**: Output when the status code, relevant headers, and response body match the HAR file exactly.
+- **`Code Review Needed`**: Output when there are relevant structural or data discrepancies between the original HAR response and the local execution.
 
-- `response_comparator.py`
-  - compara status, headers relevantes e corpo
-  - ignora headers voláteis como `Date`, `Server`, `Content-Length` e IDs de correlação
-  - compara JSON estruturalmente quando possível
-  - gera diff legível para divergências
+## Important Notes
 
-- `reporter.py`
-  - constrói e persiste o relatório final
-  - documenta branch, HAR usado, endpoint, status esperado/obtido e diff
-
-- `config.py`
-  - gerencia persistência do caminho do projeto PPL Core Platform
-
-## Fluxo de execução
-
-1. Coloque um arquivo HAR em `Compare/hars/`.
-2. Execute `python main.py` dentro de `Compare/`.
-3. Informe o nome do arquivo HAR.
-4. Selecione a entrada que deseja testar.
-5. Informe a URL local do Aspire (por exemplo `http://localhost:5046`).
-6. O runner espera o backend, executa o request, compara a resposta e salva o relatório em `Compare/reports/`.
-
-## Resultado esperado
-
-- se o status, headers relevantes e corpo coincidirem, o relatório marca `Ready for Testing`;
-- se houver divergências relevantes, o relatório marca `Code Review Needed`.
-
-## Observações
-
-- o HAR é a fonte principal de verdade para o request;
-- o host do request é substituído apenas pela URL local do Aspire;
-- path, query string e body permanecem inalterados.
-
+- The `.har` file acts as the strict primary source of truth for the baseline request.
+- Only the host URL is replaced (pointing to the local Aspire environment). The request path, query strings, and payload body remain strictly unaltered to ensure an accurate 1:1 test.
