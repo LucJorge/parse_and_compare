@@ -75,6 +75,7 @@ def run_pipeline():
     local_base_url = get_local_base_url(script_dir)
 
     har_name = input("Name of the .har file in the hars folder: ").strip().strip('"')
+    har_name = har_name + ".har" if not har_name.endswith(".har") else har_name
     har_path = resolve_har_path(script_dir, har_name)
     if har_path is None:
         sys.exit(2)
