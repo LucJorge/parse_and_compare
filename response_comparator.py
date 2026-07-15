@@ -1,8 +1,15 @@
+"""Compares a HAR-recorded (expected) HTTP response against the actual local-backend response.
+
+Status, headers (minus volatile ones) and body are compared independently;
+compare_response() combines them into a single ready_for_testing verdict.
+"""
+
 import difflib
 import json
 from typing import Any
 
 
+# Headers that vary between environments/requests and would cause false-positive diffs.
 IGNORED_HEADERS = {
     "date",
     "server",

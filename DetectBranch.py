@@ -1,6 +1,9 @@
+"""Resolves the current Git branch name of the PPL Core Platform checkout, used to label reports."""
+
 import subprocess
 import sys
 from pathlib import Path
+
 
 # Detects the current Git branch name for a given project folder.
 def detect_branch(project_path: str | Path | None = None) -> str:

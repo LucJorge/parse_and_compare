@@ -1,7 +1,13 @@
+"""Standalone CLI utility that recursively diffs two folders by file presence and byte content.
+
+Not part of the HAR replay pipeline; run directly as `python Comparison.py <folder1> <folder2>`.
+"""
+
 import sys
 from pathlib import Path
 
 
+# Returns a map of {relative_path: absolute_path} for every file under folder_path.
 def list_files(folder_path):
     folder = Path(folder_path)
 
@@ -18,6 +24,8 @@ def list_files(folder_path):
     return files
 
 
+# Compares two folders and returns a list of human-readable differences:
+# files only present in one side, and files present in both with different content.
 def compare_folders(folder1, folder2):
     files1 = list_files(folder1)
     files2 = list_files(folder2)
@@ -27,8 +35,8 @@ def compare_folders(folder1, folder2):
     for relative_path in sorted(set(files1) | set(files2)):
         if relative_path not in files1:
             differences.append(f"Only in {folder2}: {relative_path}")
-            differences.append(f"File {relative_path} is missing in {folder1}, line {files2[relative_path].read_text(encoding='utf-8')}")
-        
+            missing_content = files2[relative_path].read_text(encoding="utf-8")
+            differences.append(f"File {relative_path} is missing in {folder1}, line {missing_content}")
         elif relative_path not in files2:
             differences.append(f"Only in {folder1}: {relative_path}")
         else:

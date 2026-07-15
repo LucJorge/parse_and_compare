@@ -1,3 +1,11 @@
+"""Entry point for the HAR replay pipeline.
+
+Flow: pick a .har file -> extract its requests/expected responses via
+GetEndpoint/har_extractor -> replay each request against the local backend
+via request_runner -> compare the real response to the expected one via
+response_comparator -> save the outcome via reporter.
+"""
+
 import sys
 from pathlib import Path
 from DetectBranch import detect_branch
@@ -8,6 +16,8 @@ from response_comparator import compare_response
 from reporter import build_report, save_report, format_report_text
 from GetEndpoint import get_endpoints, find_processed_entries, parse_http_file, resolve_processed_entries_dir
 
+
+# Resolves a HAR file name to a path inside the hars/ folder, rejecting anything outside it.
 def resolve_har_path(script_dir: Path, har_name: str) -> Path | None:
     input_dir = (script_dir / "hars").resolve()
     input_dir.mkdir(parents=True, exist_ok=True)
@@ -28,8 +38,11 @@ def resolve_har_path(script_dir: Path, har_name: str) -> Path | None:
 
     return candidate
 
+
 # Runs a single processed .http entry end-to-end and returns its comparison result.
 def run_entry(script_dir, branch, har_path, har, local_base_url, entry_index, http_file):
+    # Rebuild the original request from the saved .http file and pair it with
+    # the expected response recorded in the HAR for the same entry.
     parsed_request = parse_http_file(http_file)
     entry, _ = choose_entry(har, preferred_index=entry_index)
     expected_response = extract_request(entry)["expected_response"]
@@ -47,6 +60,7 @@ def run_entry(script_dir, branch, har_path, har, local_base_url, entry_index, ht
     actual_response = send_request(request_spec, target_url)
     comparison = compare_response(expected_response, actual_response)
 
+    # Persist a report for this entry so results can be reviewed later.
     report = build_report(
         branch=branch,
         har_file=har_path,
@@ -74,12 +88,14 @@ def run_pipeline():
 
     local_base_url = get_local_base_url(script_dir)
 
+    # Ask for the HAR file to replay and make sure it lives in hars/.
     har_name = input("Name of the .har file in the hars folder: ").strip().strip('"')
     har_name = har_name + ".har" if not har_name.endswith(".har") else har_name
     har_path = resolve_har_path(script_dir, har_name)
     if har_path is None:
         sys.exit(2)
 
+    # Extract every entry of the HAR into individual .http/.json files under processed_hars/.
     print(f"Processing {har_path.name}...")
     if not get_endpoints(har_path):
         print(f"Failed to process HAR file: {har_path}")
@@ -98,6 +114,7 @@ def run_pipeline():
 
     har = load_har(har_path)
 
+    # Replay each extracted entry against the local backend and track overall success.
     all_ready = True
     for entry_index, http_file in entries:
         ready = run_entry(script_dir, branch, har_path, har, local_base_url, entry_index, http_file)

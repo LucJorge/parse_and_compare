@@ -1,9 +1,15 @@
+"""Loads and persists user-specific settings (project root, local backend URL) in config.json.
+
+Settings are asked for interactively once and then cached, so subsequent runs
+of main.py don't prompt again.
+"""
+
 import json
 from pathlib import Path
 
 DEFAULT_LOCAL_BASE_URL = "https://localhost:7078/api/Core"
 
-# Utility functions for loading and saving configuration, and determining the project root directory.
+
 def load_config(config_path: Path) -> dict:
     if config_path.exists():
         with config_path.open("r", encoding="utf-8") as handle:
@@ -16,6 +22,7 @@ def save_config(config_path: Path, config: dict) -> None:
         json.dump(config, handle, indent=2)
 
 
+# Returns the PPL Core Platform folder, asking the user for it (and caching the answer) on first use.
 def get_project_root(script_dir: Path) -> Path:
     config_path = script_dir / "config.json"
     config = load_config(config_path)

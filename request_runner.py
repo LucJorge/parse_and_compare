@@ -1,3 +1,9 @@
+"""Sends HTTP requests to the local backend and waits for it to become reachable.
+
+SSL verification is disabled since the local backend typically runs on a
+self-signed development certificate.
+"""
+
 import ssl
 import time
 from typing import Any
@@ -12,6 +18,7 @@ def _build_ssl_context() -> ssl.SSLContext:
     return context
 
 
+# Decodes a raw response body using the charset declared in its Content-Type header.
 def _decode_response_body(raw_body: bytes, headers: Any) -> str:
     if hasattr(headers, "get_content_charset"):
         charset = headers.get_content_charset("utf-8")

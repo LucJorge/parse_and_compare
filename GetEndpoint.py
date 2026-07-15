@@ -1,9 +1,14 @@
+"""Extracts HAR entries into per-entry .http/.json files under processed_hars/,
+and can parse those .http files back into a request spec for replay in main.py.
+"""
+
 import json
 import shutil
 import sys
 from pathlib import Path
 
 
+# Sanitizes a string for use as a filename.
 def safe_name(value):
     # Remove any characters that are not alphanumeric, hyphens, underscores, or periods and replace them with underscores.
     safe_value = "".join(character if character.isalnum() or character in ("-", "_", ".") else "_" for character in value)
@@ -114,6 +119,7 @@ def parse_http_file(http_file_path):
     }
 
 
+# Extracts every entry in a single HAR file into indexed .http/.json files, replacing any previous output.
 def process_har_file(har_file_path):
     har_file_path = resolve_har_path(har_file_path)
     processed_har_file_path = resolve_processed_har_path(har_file_path)

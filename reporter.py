@@ -1,10 +1,17 @@
+"""Builds and persists the per-entry comparison report produced by main.py's run_entry().
+
+A report bundles the request, expected vs. actual status, and any header/body
+diffs into JSON, plus a human-readable text rendering.
+"""
+
 import json
 from pathlib import Path
 from typing import Any
 
 from har_extractor import parse_url
 
-# Utility functions for building and saving reports, and formatting report text.
+
+# Assembles the JSON-serializable report for one replayed HAR entry.
 def build_report(
     branch: str,
     har_file: Path,
@@ -31,6 +38,7 @@ def build_report(
     }
 
 
+# Writes the report as JSON to output_dir and returns the file path.
 def save_report(report: dict[str, Any], output_dir: Path) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     report_name = f"report_{report['har_file'].replace('.har', '')}_{report['entry_index']:03d}.json"
@@ -40,6 +48,7 @@ def save_report(report: dict[str, Any], output_dir: Path) -> Path:
     return report_path
 
 
+# Renders a report as human-readable text, including header/body diffs when present.
 def format_report_text(report: dict[str, Any]) -> str:
     lines = [
         f"Branch: {report['branch']}",

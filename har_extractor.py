@@ -1,3 +1,7 @@
+"""Reads a HAR file and turns its recorded entries into the request/expected-response
+shape used by the rest of the pipeline (request_runner, response_comparator, reporter).
+"""
+
 import json
 from pathlib import Path
 from typing import Any
@@ -9,6 +13,7 @@ def load_har(har_path: Path) -> dict[str, Any]:
         return json.load(handle)
 
 
+# Returns the flat list of request/response entries recorded in the HAR log.
 def list_entries(har: dict[str, Any]) -> list[dict[str, Any]]:
     return har.get("log", {}).get("entries", [])
 
@@ -32,6 +37,7 @@ def transform_to_local_url(original_url: str, local_base_url: str) -> str:
     return f"{local_base_url.rstrip('/')}/{suffix}"
 
 
+# Splits a HAR entry into a normalized request spec and its recorded expected_response.
 def extract_request(entry: dict[str, Any]) -> dict[str, Any]:
     request = entry.get("request", {})
     url = request.get("url", "")
